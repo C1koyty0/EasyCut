@@ -1,7 +1,8 @@
 use std::fmt::{Display, Formatter};
+use std::path::Path;
 
 use video_rs::decode::Decoder;
-use video_rs::{Time, Url};
+use video_rs::{Time};
 
 pub struct MediaMeta {
     /// 视频时长, 单位s
@@ -39,8 +40,7 @@ pub struct MediaInstance {
 impl MediaInstance {
     /// TODO: 动态改成Any是不是更好?
     pub fn new(file_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let url = file_path.parse::<Url>()?;
-        let decoder = Decoder::new(url)?;
+        let decoder = Decoder::new(Path::new(file_path))?;
         Ok(Self {
             file_path: file_path.to_string(),
             decoder,
