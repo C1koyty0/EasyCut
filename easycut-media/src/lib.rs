@@ -62,7 +62,7 @@ impl MediaInstance {
     }
 
     /// 获取指定时间点的帧数据, 保证输出的格式为RGBA
-    pub fn frame_at(&mut self, timestamp_second: f64) -> Result<FrameBuffer, video_rs::Error> {
+    pub fn frame_at(&mut self, timestamp_second: f32) -> Result<FrameBuffer, video_rs::Error> {
         let timestamp_millisecond = (timestamp_second * 1000.0) as i64;
         self.decoder.seek(timestamp_millisecond)?;
         // HWC

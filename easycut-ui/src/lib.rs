@@ -43,6 +43,13 @@ impl eframe::App for MyApp {
                 self.media = Some(MediaInstance::new(&self.file_path).unwrap());
             }
             ui.add(egui::Slider::new(&mut self.current_time, 0.0..=self.media.as_ref().map_or(0.0, |m| {m.get_meta().duration})).text("current_time"));
+
+            if let Some(media) = self.media.as_mut() {
+                let frame = media.frame_at(self.current_time).unwrap();
+                let color_image = egui::ColorImage::from_rgba_unmultiplied([media.get_meta().width as usize, media.get_meta().height as usize], &frame.rgba_data);
+                let texture_handle = ui.ctx().load_texture("frame", color_image, Default::default());
+                ui.image((texture_handle.id(), texture_handle.size_vec2()));
+            }
         });
     }
 
