@@ -15,10 +15,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         image::ColorType::Rgba8,
     )?;
 
-    let app = MyApp {
-        frame: Some(frame1),
-        texture_handle: None,
-    };
-    app.init();
+    MyApp::init();
     Ok(())
 }

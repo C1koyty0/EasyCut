@@ -1,22 +1,20 @@
-use easycut_media::FrameBuffer;
+use easycut_media::MediaInstance;
 
 use eframe::egui;
 use egui::TextureHandle;
 
 #[derive(Default)]
 pub struct MyApp {
-    pub frame: Option<FrameBuffer>,
+    pub media: Option<MediaInstance>,
     pub texture_handle: Option<TextureHandle>,
+    pub file_path: String,
+    pub current_time: f32,
 }
 
 impl MyApp {
-    pub fn init(self) {
-        let frame = self.frame.expect("frame must be set before init");
-
-        let width = frame.width as usize;
-        let height = frame.height as usize;
+    pub fn init() {
         let options = eframe::NativeOptions {
-            viewport: egui::ViewportBuilder::default().with_inner_size([width as f32 * 2.0, height as f32 * 2.0]),
+            viewport: egui::ViewportBuilder::default().with_inner_size([720.0, 1080.0]),
             ..Default::default()
         };
         eframe::run_native(
@@ -24,15 +22,12 @@ impl MyApp {
             options,
             Box::new(move |cc| {
                 egui_extras::install_image_loaders(&cc.egui_ctx);
-                let color_image =
-                    egui::ColorImage::from_rgba_premultiplied([width, height], &frame.rgba_data);
-                let texture_handle =
-                    cc.egui_ctx
-                        .load_texture("frame", color_image, Default::default());
 
                 Ok(Box::new(MyApp {
-                    frame: Some(frame),
-                    texture_handle: Some(texture_handle),
+                    media: None,
+                    texture_handle: None,
+                    file_path: String::new(),
+                    current_time: 0.0,
                 }))
             }),
         )
@@ -43,9 +38,12 @@ impl MyApp {
 impl eframe::App for MyApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ui, |ui| {
-            if let Some(texture_handle) = self.texture_handle.as_ref() {
-                ui.image((texture_handle.id(), texture_handle.size_vec2()));
+            if ui.button("Open file").clicked() && let Some(path) = rfd::FileDialog::new().pick_file() {
+                self.file_path = path.to_string_lossy().to_string();
+                self.media = Some(MediaInstance::new(&self.file_path).unwrap());
             }
+            ui.add(egui::Slider::new(&mut self.current_time, 0.0..=self.media.as_ref().map_or(0.0, |m| {m.get_meta().duration})).text("current_time"));
         });
     }
+
 }
