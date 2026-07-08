@@ -1,4 +1,5 @@
 use easycut_media::MediaInstance;
+use easycut_ui::MyApp;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // TODO: Error handling
@@ -14,5 +15,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         image::ColorType::Rgba8,
     )?;
 
+    let app = MyApp {
+        frame: Some(frame1),
+        texture_handle: None,
+    };
+    app.init();
     Ok(())
 }
