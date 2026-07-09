@@ -1,8 +1,9 @@
 use std::fmt::{Display, Formatter};
 use std::path::Path;
 
+use video_rs::Error::DecodeExhausted;
 use video_rs::decode::Decoder;
-use video_rs::{Time};
+use video_rs::{Frame, Time};
 
 pub struct MediaMeta {
     /// 视频时长, 单位s
@@ -63,15 +64,33 @@ impl MediaInstance {
 
     /// 获取指定时间点的帧数据, 保证输出的格式为RGBA
     pub fn frame_at(&mut self, timestamp_second: f32) -> Result<FrameBuffer, video_rs::Error> {
-        let timestamp_millisecond = (timestamp_second * 1000.0) as i64;
-        self.decoder.seek(timestamp_millisecond)?;
+        let mut timestamp_millisecond = (timestamp_second * 1000.0) as i64;
         // HWC
-        let (_, raw_frame) = self.decoder.decode()?;
+
+        loop {
+            self.decoder.seek(timestamp_millisecond)?;
+            match self.decoder.decode() {
+                Ok((ts, raw_frame)) => {
+                    if ts.as_secs() > timestamp_second {
+                        return Ok(Self::frame_from_raw_frame(raw_frame));
+                    }
+                    timestamp_millisecond += 100;
+                },
+                Err(e) => match e {
+                    DecodeExhausted => return Err(e),
+                    _ => {
+                        panic!("Unhandled error: {}", e);
+                    }
+                },
+            }
+        }
+    }
+
+    fn frame_from_raw_frame(raw_frame: Frame) -> FrameBuffer {
         let height = raw_frame.shape()[0];
         let width = raw_frame.shape()[1];
         let channels = raw_frame.shape()[2];
         let mut rgba_data: Vec<u8>;
-        println!("raw_frame.shape(): {:?}", raw_frame.shape());
         match channels {
             3 => {
                 rgba_data = Vec::with_capacity(height * width * 4);
@@ -91,10 +110,10 @@ impl MediaInstance {
                 panic!("Unsupported channel count: {}", channels);
             }
         }
-        Ok(FrameBuffer {
+        FrameBuffer {
             height: height as u32,
             width: width as u32,
             rgba_data: rgba_data,
-        })
+        }
     }
 }
