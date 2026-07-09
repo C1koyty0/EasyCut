@@ -5,6 +5,30 @@ use video_rs::Error::DecodeExhausted;
 use video_rs::decode::Decoder;
 use video_rs::{Frame, Time};
 
+pub enum Command {
+    Play,
+    Pause,
+    Seek(f32),
+}
+
+pub struct MediaPlayer {
+
+}
+
+impl MediaPlayer {
+    pub fn play() {
+        todo!();
+    }
+
+    pub fn pause() {
+        todo!();
+    }
+
+    pub fn seek() {
+        todo!();
+    }
+}
+
 pub struct MediaMeta {
     /// 视频时长, 单位s
     pub duration: f32,
@@ -75,7 +99,7 @@ impl MediaInstance {
                         return Ok(Self::frame_from_raw_frame(raw_frame));
                     }
                     timestamp_millisecond += 100;
-                },
+                }
                 Err(e) => match e {
                     DecodeExhausted => return Err(e),
                     _ => {
