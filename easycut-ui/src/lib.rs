@@ -43,43 +43,49 @@ impl eframe::App for MyApp {
             if ui.button("Open file").clicked()
                 && let Some(path) = rfd::FileDialog::new().pick_file()
             {
+                println!("select file: {}", path.to_string_lossy());
                 self.file_path = path.to_string_lossy().to_string();
                 self.media = Some(MediaInstance::new(&self.file_path).unwrap());
             }
-            if ui.button("Play").clicked() && !self.file_path.is_empty() {
-                self.is_playing = !self.is_playing;
-                // async decode and render
-                // loop {
-                //     if !self.is_playing { break; }
-                // }
+            if let None = self.media {
+                return
             }
-            ui.add(
-                egui::Slider::new(
-                    &mut self.current_time,
-                    0.0..=self.media.as_ref().map_or(0.0, |m| m.get_meta().duration),
-                )
-                .text("current_time"),
-            );
-
-            if let Some(media) = self.media.as_mut() {
-                match media.frame_at(self.current_time) {
-                    Ok(frame) => {
-                        let color_image = egui::ColorImage::from_rgba_unmultiplied(
-                            [
-                                media.get_meta().width as usize,
-                                media.get_meta().height as usize,
-                            ],
-                            &frame.rgba_data,
-                        );
-                        let texture_handle =
-                            ui.ctx()
-                                .load_texture("frame", color_image, Default::default());
-                        ui.image((texture_handle.id(), texture_handle.size_vec2()));
-                    },
-                    Err(e) => {
-                        println!("Error: {}", e);
+            self.media.as_mut().unwrap().frame_at(0.0);
+            if self.media.as_ref().unwrap().load_finished{
+                if ui.button("Play").clicked() && !self.file_path.is_empty() {
+                    self.is_playing = !self.is_playing;
+                }
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.current_time,
+                        0.0..=self.media.as_ref().map_or(0.0, |m| m.meta.duration),
+                    )
+                    .text("current_time"),
+                );
+    
+                if let Some(media) = self.media.as_mut() {
+                    match media.frame_at(self.current_time) {
+                        Some(frame) => {
+                            let color_image = egui::ColorImage::from_rgba_unmultiplied(
+                                [
+                                    frame.width as usize,
+                                    frame.height as usize,
+                                ],
+                                &frame.rgba_data,
+                            );
+                            let texture_handle =
+                                ui.ctx()
+                                    .load_texture("frame", color_image, Default::default());
+                            ui.image((texture_handle.id(), texture_handle.size_vec2()));
+                        },
+                        None => {
+                            println!("No frame found");
+                        }
                     }
                 }
+            } else {
+                ui.add(egui::Spinner::new());
+                return;
             }
         });
     }

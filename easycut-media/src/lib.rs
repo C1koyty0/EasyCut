@@ -1,33 +1,8 @@
 use std::fmt::{Display, Formatter};
 use std::path::Path;
-
-use video_rs::Error::DecodeExhausted;
+use std::sync::mpsc::{self, Receiver, TryRecvError};
 use video_rs::decode::Decoder;
 use video_rs::{Frame, Time};
-
-pub enum Command {
-    Play,
-    Pause,
-    Seek(f32),
-}
-
-pub struct MediaPlayer {
-
-}
-
-impl MediaPlayer {
-    pub fn play() {
-        todo!();
-    }
-
-    pub fn pause() {
-        todo!();
-    }
-
-    pub fn seek() {
-        todo!();
-    }
-}
 
 pub struct MediaMeta {
     /// 视频时长, 单位s
@@ -44,6 +19,7 @@ pub struct MediaMeta {
 pub struct FrameBuffer {
     pub width: u32,
     pub height: u32,
+    pub ts: f32,
     pub rgba_data: Vec<u8>,
 }
 
@@ -59,58 +35,63 @@ impl Display for MediaMeta {
 
 pub struct MediaInstance {
     pub file_path: String,
-    decoder: Decoder,
+    pub frames: Vec<FrameBuffer>,
+    pub meta: MediaMeta,
+    pub load_finished: bool,
+    rx: Receiver<FrameBuffer>,
 }
 
 impl MediaInstance {
-    /// TODO: 动态改成Any是不是更好?
     pub fn new(file_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let decoder = Decoder::new(Path::new(file_path))?;
+        let mut decoder = Decoder::new(Path::new(file_path))?;
+        let meta = Self::get_meta(&decoder);
+        let frames = Vec::new();
+        let (tx, rx) = mpsc::channel::<FrameBuffer>();
+        std::thread::spawn(move || {
+            while let Ok((time, raw_frame)) = decoder.decode() {
+                let _ = tx.send(Self::frame_from_raw_frame(time.as_secs(), raw_frame));
+            }
+            println!("Decoder finished ");
+        });
+        println!("Decoder thread spawned, init success. {}", file_path);
         Ok(Self {
             file_path: file_path.to_string(),
-            decoder,
+            frames,
+            meta,
+            load_finished: false,
+            rx,
         })
     }
 
     /// 获取视频元数据
-    pub fn get_meta(&self) -> MediaMeta {
+    fn get_meta(decoder: &Decoder) -> MediaMeta {
         MediaMeta {
-            duration: self
-                .decoder
-                .duration()
-                .unwrap_or(Time::from_secs(0.0))
-                .as_secs(),
-            width: self.decoder.size().0,
-            height: self.decoder.size().1,
-            frame_rate: self.decoder.frame_rate(),
+            duration: decoder.duration().unwrap_or(Time::from_secs(0.0)).as_secs(),
+            width: decoder.size().0,
+            height: decoder.size().1,
+            frame_rate: decoder.frame_rate(),
         }
     }
 
     /// 获取指定时间点的帧数据, 保证输出的格式为RGBA
-    pub fn frame_at(&mut self, timestamp_second: f32) -> Result<FrameBuffer, video_rs::Error> {
-        let mut timestamp_millisecond = (timestamp_second * 1000.0) as i64;
-        // HWC
-
-        loop {
-            self.decoder.seek(timestamp_millisecond)?;
-            match self.decoder.decode() {
-                Ok((ts, raw_frame)) => {
-                    if ts.as_secs() > timestamp_second {
-                        return Ok(Self::frame_from_raw_frame(raw_frame));
-                    }
-                    timestamp_millisecond += 100;
-                }
-                Err(e) => match e {
-                    DecodeExhausted => return Err(e),
-                    _ => {
-                        panic!("Unhandled error: {}", e);
-                    }
-                },
+    pub fn frame_at(&mut self, timestamp_second: f32) -> Option<&FrameBuffer> {
+        while let Ok(frame) = self.rx.try_recv() {
+            self.frames.push(frame);
+        }
+        if let Err(e) = self.rx.try_recv() {
+            if e == TryRecvError::Disconnected {
+                self.load_finished = true;
             }
         }
+        for _frame in &self.frames {
+            if _frame.ts > timestamp_second {
+                return Some(_frame);
+            }
+        }
+        None
     }
 
-    fn frame_from_raw_frame(raw_frame: Frame) -> FrameBuffer {
+    fn frame_from_raw_frame(ts: f32, raw_frame: Frame) -> FrameBuffer {
         let height = raw_frame.shape()[0];
         let width = raw_frame.shape()[1];
         let channels = raw_frame.shape()[2];
@@ -137,6 +118,7 @@ impl MediaInstance {
         FrameBuffer {
             height: height as u32,
             width: width as u32,
+            ts: ts,
             rgba_data: rgba_data,
         }
     }
