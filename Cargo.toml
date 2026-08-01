@@ -1,3 +1,7 @@
 [workspace]
 members = ["easycut-core", "easycut-media", "easycut-ui"]
 resolver = "2"
+
+[workspace.dependencies]
+log = "0.4.33"
+log4rs = "1.4.0"
