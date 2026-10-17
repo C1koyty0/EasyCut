@@ -90,6 +90,13 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Restore vcpkg binary cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/vcpkg-binary-cache
+          key: vcpkg-ffmpeg-x64-windows-${{ hashFiles('.github/workflows/ci-release.yml') }}
+          restore-keys: vcpkg-ffmpeg-x64-windows-
+
       - name: Install FFmpeg development libraries
         shell: pwsh
         run: |
@@ -97,9 +104,22 @@ jobs:
           if (-not $vcpkgRoot) {
             $vcpkgRoot = "C:\vcpkg"
           }
+          $vcpkgCommit = "34823ada10080ddca99b60e85f80f55e18a44eea"
+          git -C $vcpkgRoot fetch --depth 1 origin $vcpkgCommit
+          git -C $vcpkgRoot checkout --force $vcpkgCommit
           "VCPKG_ROOT=$vcpkgRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$vcpkgRoot" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $cacheDir = Join-Path $env:RUNNER_TEMP "vcpkg-binary-cache"
+          New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+          $env:VCPKG_DEFAULT_BINARY_CACHE = $cacheDir
           & "$vcpkgRoot\vcpkg.exe" install ffmpeg:x64-windows
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Save vcpkg binary cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/vcpkg-binary-cache
+          key: vcpkg-ffmpeg-x64-windows-${{ hashFiles('.github/workflows/ci-release.yml') }}
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -115,7 +135,10 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist/EasyCut-windows-amd64 | Out-Null
           Copy-Item target/x86_64-pc-windows-msvc/release/easycut-core.exe dist/EasyCut-windows-amd64/EasyCut.exe
-          Compress-Archive -Path dist/EasyCut-windows-amd64/EasyCut.exe -DestinationPath dist/EasyCut-windows-amd64.zip -Force
+          $dlls = Get-ChildItem -Path "$env:VCPKG_ROOT\installed\x64-windows\bin" -Filter "*.dll"
+          if (-not $dlls) { throw "No FFmpeg runtime DLLs found in vcpkg installation" }
+          $dlls | Copy-Item -Destination dist/EasyCut-windows-amd64
+          Compress-Archive -Path dist/EasyCut-windows-amd64 -DestinationPath dist/EasyCut-windows-amd64.zip -Force
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
