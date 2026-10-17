@@ -6,4 +6,3 @@ edition = "2024"
 [dependencies]
 easycut-media = { path = "../easycut-media" }
 easycut-ui = { path = "../easycut-ui" }
-image = "0.25.10"

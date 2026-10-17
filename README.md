@@ -12,13 +12,24 @@ EasyCut 旨在提供简单易用的视频剪辑体验，适合日常快速裁剪
 
 ## 目标平台
 
-- Windows
+- Windows 64 位（`x86_64-pc-windows-msvc`）
+- macOS Apple Silicon（`aarch64-apple-darwin`）
 
 ## 支持格式
 
 | 格式 | 状态 |
 |------|------|
 | MP4  | 支持 |
+
+## 预览
+
+打开视频后可播放、暂停、拖动定位并调节音量。带音轨的视频以音频输出进度作为画面时钟；视频缓冲不足时会暂停音频，待画面追上后继续播放。无音轨或音频设备不可用时仍可进行无声视频预览。`Set in` 和 `Set out` 可以标记片段范围，点击 `Export MP4` 后在后台调用本机 `ffmpeg` 生成 H.264/AAC MP4。保存对话框默认文件名为 `源文件名-片段时长(s).mp4`，导出期间显示编码进度。需要先安装带 `libx264` 和 AAC 编码器的 FFmpeg。
+
+从 workspace 根目录运行桌面应用：
+
+```bash
+cargo run -p easycut-core
+```
 
 ## 环境要求
 
@@ -47,6 +58,29 @@ cargo build   # 调试构建
 cargo test    # 运行测试
 cargo run     # 运行开发版本
 ```
+
+## GitLab CI 发布
+
+推送版本 tag 会构建并创建 GitLab Release，产物包括：
+
+- `EasyCut-macos-arm64.tar.gz`：Apple Silicon macOS（`aarch64-apple-darwin`）
+- `EasyCut-windows-amd64.zip`：Windows 64 位（`x86_64-pc-windows-msvc`）
+
+项目需要配置两个 GitLab Runner：一个 Apple Silicon macOS Runner，标签为
+`macos-arm64`；一个 Windows 64 位 Runner，标签为 `windows-amd64`。CI 不构建
+Intel macOS，也不构建 32 位 Windows。发布构建只在 tag pipeline 中执行，例如：
+
+两个 Runner 还需要预装 Rust stable、FFmpeg 开发库和 `pkg-config`（Windows
+Runner 可通过 vcpkg 提供 FFmpeg），因为 `video-rs` 在编译期需要 FFmpeg 的
+headers 和 libraries。
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+导出功能仍需要运行环境自行安装带 `libx264` 和 AAC 编码器的 FFmpeg；FFmpeg
+不会被静态打包进桌面压缩包。
 
 ## 许可证
 

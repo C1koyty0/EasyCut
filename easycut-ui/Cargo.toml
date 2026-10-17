@@ -6,7 +6,5 @@ edition = "2024"
 [dependencies]
 eframe = "0.35.0"
 egui = "0.35.0"
-egui_extras = { version = "*", features = ["all_loaders"] }
-image = { version = "0.25", features = ["jpeg", "png"] }
 easycut-media = { path = "../easycut-media" }
 rfd = "0.14"
