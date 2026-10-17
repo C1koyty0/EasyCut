@@ -59,20 +59,20 @@ cargo test    # 运行测试
 cargo run     # 运行开发版本
 ```
 
-## GitLab CI 发布
+## GitHub Actions 发布
 
-推送版本 tag 会构建并创建 GitLab Release，产物包括：
+推送版本 tag 会通过 GitHub Actions 构建并创建 GitHub Release，产物包括：
 
 - `EasyCut-macos-arm64.tar.gz`：Apple Silicon macOS（`aarch64-apple-darwin`）
 - `EasyCut-windows-amd64.zip`：Windows 64 位（`x86_64-pc-windows-msvc`）
 
-项目需要配置两个 GitLab Runner：一个 Apple Silicon macOS Runner，标签为
-`macos-arm64`；一个 Windows 64 位 Runner，标签为 `windows-amd64`。CI 不构建
-Intel macOS，也不构建 32 位 Windows。发布构建只在 tag pipeline 中执行，例如：
+工作流使用 GitHub-hosted Runner：`macos-14` 构建 Apple Silicon，
+`windows-latest` 构建 Windows 64 位。CI 不构建 Intel macOS，也不构建 32 位
+Windows。发布构建只在 `v*` tag workflow 中执行，例如：
 
-两个 Runner 还需要预装 Rust stable、FFmpeg 开发库和 `pkg-config`（Windows
-Runner 可通过 vcpkg 提供 FFmpeg），因为 `video-rs` 在编译期需要 FFmpeg 的
-headers 和 libraries。
+工作流会在构建时安装 Rust stable、FFmpeg 开发库和 `pkg-config`；Windows
+通过 vcpkg 提供 FFmpeg，因为 `video-rs` 在编译期需要 FFmpeg 的 headers 和
+libraries。
 
 ```bash
 git tag v0.1.0
