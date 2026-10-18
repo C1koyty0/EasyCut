@@ -7,6 +7,8 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use video_rs::decode::DecoderBuilder;
+#[cfg(target_os = "windows")]
+use video_rs::hwaccel::HardwareAccelerationDeviceType;
 use video_rs::resize::Resize;
 use video_rs::{Error as VideoError, Frame, Time};
 
@@ -16,8 +18,10 @@ mod export;
 pub use export::{ExportResult, export_clip, export_clip_with_progress};
 
 const CACHE_LIMIT_BYTES: usize = 64 * 1024 * 1024;
-const PREFETCH_MS: i64 = 250;
-const EVENT_CAPACITY: usize = 4;
+const PREFETCH_MS: i64 = 750;
+const EVENT_CAPACITY: usize = 12;
+const PREVIEW_MAX_WIDTH: u32 = 960;
+const PREVIEW_MAX_HEIGHT: u32 = 540;
 
 /// Source metadata, before the preview image is resized.
 #[derive(Clone, Debug)]
@@ -329,10 +333,18 @@ fn send_event(
 }
 
 fn run_worker(path: PathBuf, commands: Receiver<Command>, events: SyncSender<Event>) {
-    let mut decoder = match DecoderBuilder::new(path.as_path())
-        .with_resize(Resize::Fit(960, 540))
+    let decoder_builder = || {
+        DecoderBuilder::new(path.as_path())
+            .with_resize(Resize::Fit(PREVIEW_MAX_WIDTH, PREVIEW_MAX_HEIGHT))
+    };
+    #[cfg(target_os = "windows")]
+    let decoder_result = decoder_builder()
+        .with_hardware_acceleration(HardwareAccelerationDeviceType::D3D11Va)
         .build()
-    {
+        .or_else(|_| decoder_builder().build());
+    #[cfg(not(target_os = "windows"))]
+    let decoder_result = decoder_builder().build();
+    let mut decoder = match decoder_result {
         Ok(decoder) => decoder,
         Err(error) => {
             let _ = events.send(Event::Failed {
