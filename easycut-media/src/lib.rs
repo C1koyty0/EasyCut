@@ -89,6 +89,7 @@ pub struct MediaSession {
     frames: VecDeque<FrameBuffer>,
     cached_bytes: usize,
     generation: u64,
+    playhead_seconds: f32,
     requested_until_ms: i64,
     tx: Sender<Command>,
     rx: Receiver<Event>,
@@ -109,6 +110,7 @@ impl MediaSession {
             frames: VecDeque::new(),
             cached_bytes: 0,
             generation: 0,
+            playhead_seconds: 0.0,
             requested_until_ms: 0,
             tx,
             rx,
@@ -129,6 +131,7 @@ impl MediaSession {
         self.cached_bytes = 0;
         self.error = None;
         self.state = MediaState::Buffering;
+        self.playhead_seconds = target_ms as f32 / 1_000.0;
         self.requested_until_ms = target_ms.saturating_add(PREFETCH_MS);
         if self
             .tx
@@ -148,6 +151,8 @@ impl MediaSession {
         if !matches!(self.state, MediaState::Ready | MediaState::Buffering) {
             return;
         }
+        self.playhead_seconds = target_ms.max(0) as f32 / 1_000.0;
+        self.trim_cache();
         let until_ms = target_ms.saturating_add(PREFETCH_MS);
         if until_ms <= self.requested_until_ms {
             return;
@@ -236,7 +241,12 @@ impl MediaSession {
     }
 
     fn trim_cache(&mut self) {
-        trim_cache_to(&mut self.frames, &mut self.cached_bytes, CACHE_LIMIT_BYTES);
+        trim_cache_to(
+            &mut self.frames,
+            &mut self.cached_bytes,
+            CACHE_LIMIT_BYTES,
+            self.playhead_seconds,
+        );
     }
 
     fn fail(&mut self, message: String) {
@@ -245,8 +255,18 @@ impl MediaSession {
     }
 }
 
-fn trim_cache_to(frames: &mut VecDeque<FrameBuffer>, bytes: &mut usize, limit: usize) {
+fn trim_cache_to(
+    frames: &mut VecDeque<FrameBuffer>,
+    bytes: &mut usize,
+    limit: usize,
+    playhead_seconds: f32,
+) {
     while *bytes > limit && frames.len() > 1 {
+        // Keep the frame at or immediately before the playhead, even if the
+        // short decode window temporarily exceeds the byte budget.
+        if frames.get(1).is_some_and(|next| next.ts > playhead_seconds) {
+            break;
+        }
         if let Some(frame) = frames.pop_front() {
             *bytes -= frame.rgba_data.len();
         }
@@ -653,8 +673,29 @@ mod tests {
             },
         ]);
         let mut bytes = 12;
-        trim_cache_to(&mut frames, &mut bytes, 7);
+        trim_cache_to(&mut frames, &mut bytes, 7, 2.0);
         assert_eq!(bytes, 4);
         assert_eq!(frames.front().unwrap().ts, 2.0);
+    }
+
+    #[test]
+    fn cache_keeps_the_playhead_frame_during_60_fps_prefetch() {
+        let mut frames = (0..=45)
+            .map(|index| FrameBuffer {
+                width: 1,
+                height: 1,
+                ts: index as f32 / 60.0,
+                rgba_data: vec![0; 4],
+            })
+            .collect::<VecDeque<_>>();
+        let mut bytes = frames.len() * 4;
+
+        // 750 ms ahead at 60 fps contains more frames than this 32-frame budget.
+        trim_cache_to(&mut frames, &mut bytes, 32 * 4, 0.0);
+        assert_eq!(frames.front().unwrap().ts, 0.0);
+
+        trim_cache_to(&mut frames, &mut bytes, 32 * 4, 0.3);
+        assert!(frames.front().unwrap().ts <= 0.3);
+        assert!(frames.get(1).unwrap().ts > 0.3 || bytes <= 32 * 4);
     }
 }

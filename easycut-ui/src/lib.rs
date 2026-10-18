@@ -494,6 +494,13 @@ mod tests {
     }
 
     #[test]
+    fn sixty_fps_playback_clock_advances_one_second_per_second() {
+        let (time, stalled) = playback_time(0.0, 1.0, 10.0, 1.5, 1.0 / 60.0, false);
+        assert!(!stalled);
+        assert_eq!(time, 1.0);
+    }
+
+    #[test]
     fn ended_stream_can_advance_to_duration() {
         let (time, stalled) = playback_time(9.8, 0.5, 10.0, 9.8, 0.04, true);
         assert_eq!(time, 10.0);
