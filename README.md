@@ -74,7 +74,16 @@ Windows。发布构建只在 `v*` tag workflow 中执行，例如：
 通过 vcpkg 提供 FFmpeg，因为 `video-rs` 在编译期需要 FFmpeg 的 headers 和
 libraries。
 
+Windows FFmpeg 固定使用 vcpkg commit
+`34823ada10080ddca99b60e85f80f55e18a44eea`（FFmpeg 7）。推送默认分支
+`dev/v1` 时，Windows 任务会预热 vcpkg 二进制缓存，不生成发布包。请先等待该
+任务成功，再推送版本 tag；tag 构建可以读取默认分支的缓存，避免每个版本都
+从源码编译 FFmpeg。缓存键只与固定依赖版本关联，不会因修改其他工作流步骤
+而失效。首次构建、缓存被清理或编译工具链发生变化时，仍可能需要编译 FFmpeg。
+
 ```bash
+git push origin dev/v1
+# 等待默认分支的 Windows 缓存任务成功后：
 git tag v0.1.0
 git push origin v0.1.0
 ```

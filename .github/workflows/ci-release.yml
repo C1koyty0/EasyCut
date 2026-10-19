@@ -84,18 +84,18 @@ jobs:
 
   build-windows-amd64:
     name: Build Windows 64-bit
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.ref == 'refs/heads/dev/v1' || startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
     steps:
       - name: Check out source
         uses: actions/checkout@v4
 
       - name: Restore vcpkg binary cache
+        id: ffmpeg-cache
         uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}/vcpkg-binary-cache
-          key: vcpkg-ffmpeg-x64-windows-${{ hashFiles('.github/workflows/ci-release.yml') }}
-          restore-keys: vcpkg-ffmpeg-x64-windows-
+          key: vcpkg-ffmpeg-x64-windows-34823ada10080ddca99b60e85f80f55e18a44eea
 
       - name: Install FFmpeg development libraries
         shell: pwsh
@@ -120,21 +120,25 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Save vcpkg binary cache
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ${{ runner.temp }}/vcpkg-binary-cache
-          key: vcpkg-ffmpeg-x64-windows-${{ hashFiles('.github/workflows/ci-release.yml') }}
+          key: vcpkg-ffmpeg-x64-windows-34823ada10080ddca99b60e85f80f55e18a44eea
 
       - name: Install Rust
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable-x86_64-pc-windows-msvc
           targets: x86_64-pc-windows-msvc
 
       - name: Build
+        if: startsWith(github.ref, 'refs/tags/v')
         run: cargo build --release --locked --target x86_64-pc-windows-msvc -p easycut-core
 
       - name: Package
+        if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist/EasyCut-windows-amd64 | Out-Null
@@ -145,6 +149,7 @@ jobs:
           Compress-Archive -Path dist/EasyCut-windows-amd64 -DestinationPath dist/EasyCut-windows-amd64.zip -Force
 
       - name: Upload artifact
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
         with:
           name: EasyCut-windows-amd64
